@@ -5,5 +5,5 @@ La URI de Atlas vive en `atlas_config.py`, que no se versiona.
 
 from __future__ import annotations
 
-APP_VERSION = "1.1.2"
+APP_VERSION = "1.1.3"
 APP_NAME = "Mayorix Vendedor"

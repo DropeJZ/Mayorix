@@ -31,6 +31,20 @@ MAX_INTENTOS_CODIGO = 5
 SESSION_TTL_DIAS = 30
 DB_POR_DEFECTO = "mayorix"
 
+# TLS tolerante para redes móviles: algunos operadores interceptan el
+# certificado del clúster y rompen la validación de la cadena. Desactivar la
+# validación reduce la seguridad (riesgo de intermediario), por eso se puede
+# volver al modo estricto con MAYORIX_TLS_ESTRICTO=1 en el entorno.
+TLS_TOLERANTE = os.getenv("MAYORIX_TLS_ESTRICTO", "").strip() != "1"
+
+
+def opciones_conexion() -> dict:
+    """Opciones comunes de pymongo, con TLS tolerante en redes móviles."""
+    opciones: dict = {"tls": True}
+    if TLS_TOLERANTE:
+        opciones["tlsAllowInvalidCertificates"] = True
+    return opciones
+
 
 def _directorio_datos() -> Path:
     base = os.getenv("FLET_APP_STORAGE_DATA", "").strip()
@@ -176,6 +190,7 @@ class MobileStore:
     def _conectar(self):
         self.client = MongoClient(
             self.uri,
+            **opciones_conexion(),
             serverSelectionTimeoutMS=9000,
             connectTimeoutMS=9000,
             socketTimeoutMS=20000,
@@ -199,6 +214,7 @@ class MobileStore:
         try:
             prueba = MongoClient(
                 texto,
+                **opciones_conexion(),
                 serverSelectionTimeoutMS=9000,
                 connectTimeoutMS=9000,
                 appname="MayorixVendedorSetup",

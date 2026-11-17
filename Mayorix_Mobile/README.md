@@ -61,6 +61,22 @@ permitir las IP de los teléfonos en **Network Access**. Para uso fuera de la re
 fija, agrega `0.0.0.0/0` o usa Private Endpoint/VPN según la política de la
 empresa.
 
+### TLS tolerante en redes móviles
+
+La app abre la conexión con `tls=True` y `tlsAllowInvalidCertificates=True`
+para tolerar operadores o proxies que interceptan el certificado del clúster.
+Eso evita que el login se quede bloqueado por una cadena de certificados
+inválida, pero **desactiva la validación TLS**: reduce la protección frente a
+un intermediario. Para volver al modo estricto, compila con:
+
+```powershell
+$env:MAYORIX_TLS_ESTRICTO = "1"
+```
+
+o define esa variable antes de abrir la app en desarrollo. Si el clúster exige
+IP permitida, TLS tolerante no sustituye la lista de acceso de Atlas: si la IP
+del teléfono no está autorizada, la conexión seguirá rechazándose.
+
 La URI configurada es una credencial del dispositivo. Se recomienda:
 
 - Crear un usuario de Atlas exclusivo para la app móvil, con permisos mínimos
@@ -82,7 +98,7 @@ python main.py
 cd D:\PROYECTOS\Mayorix\Mayorix_Mobile
 flet build apk . --project "Mayorix Vendedor" `
   --org com.droptech --bundle-id com.droptech.mayorix.vendedor `
-  --build-version 1.1.2 --build-number 4 --yes
+  --build-version 1.1.3 --build-number 5 --yes
 ```
 
 El APK queda en `build/apk/Mayorix Vendedor.apk`.
