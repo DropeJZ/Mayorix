@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 from pathlib import Path
 
 import flet as ft
 
 import config
 import rate
+import session_store
 import ui_mobile as ui
 from catalog_view import catalog_view
 from cart_view import cart_view
@@ -39,6 +41,8 @@ class VendedorApp:
         self.db_name = self.store.db_name
         self.vendor: dict = {}
         self.rate = 0.0
+        self.session_token = ""
+        self.session_expira = 0
         self.tab = "catalogo"
         self.cart: dict[str, dict] = {}
         self.checkout = {
@@ -119,6 +123,8 @@ class VendedorApp:
 
     def show_login(self):
         self.vendor = {}
+        self.session_token = ""
+        self.session_expira = 0
         self.cart = {}
         self.catalog_items = []
         self.orders_items = []
@@ -131,6 +137,69 @@ class VendedorApp:
         self.page.title = "Mayorix · Vendedor"
         self.refresh_login()
 
+    def iniciar_sesion_o_login(self):
+        try:
+            sesion = session_store.leer_sesion()
+        except Exception:
+            sesion = None
+        if sesion:
+            self.vendor = sesion.get("vendor", {}) or {}
+            self.session_token = sesion.get("token", "")
+            self.session_expira = int(sesion.get("expira_epoch", 0) or 0)
+            self.rate = float(sesion.get("tasa", 0) or 0)
+            self.show_shell()
+            self.page.run_task(self._restaurar_sesion_remota, self.session_token)
+            return
+        self.show_login()
+
+    async def _restaurar_sesion_remota(self, token: str):
+        await self._cargar_tasa()
+        if self.session_token != token:
+            return
+        session_store.guardar_sesion(
+            token, self.vendor, self.session_expira, self.rate
+        )
+        try:
+            vendedor = await self.run_blocking(
+                self.store.validar_sesion, token
+            )
+        except Exception:
+            self.toast(
+                "Sin conexión con Atlas. Se conserva la sesión guardada.",
+                "warning",
+            )
+            if self.content_host is not None:
+                self.refresh_view()
+            return
+        if not vendedor or self.session_token != token:
+            self._cerrar_sesion(
+                aviso="La sesión expiró o fue revocada. Inicia sesión de nuevo."
+            )
+            return
+        self.vendor = vendedor
+        session_store.guardar_sesion(
+            token, self.vendor, self.session_expira, self.rate
+        )
+        if self.content_host is not None:
+            self.refresh_view()
+
+    def _cerrar_sesion(self, aviso: str = ""):
+        token = self.session_token
+        self.session_token = ""
+        self.session_expira = 0
+        session_store.borrar_sesion()
+        if token:
+            self.page.run_task(self._revocar_sesion_remota, token)
+        self.show_login()
+        if aviso:
+            self.toast(aviso, "warning")
+
+    async def _revocar_sesion_remota(self, token: str):
+        try:
+            await self.run_blocking(self.store.revocar_sesion, token)
+        except Exception:
+            pass
+
     def show_setup(self):
         self.page.title = "Mayorix · Configuración"
         self.page.controls.clear()
@@ -141,7 +210,7 @@ class VendedorApp:
         await self.run_blocking(self.store.configurar, uri)
         self.db_name = self.store.db_name
         await self._cargar_tasa()
-        self.show_login()
+        self.iniciar_sesion_o_login()
         self.toast("Conexión con MongoDB Atlas configurada.", "success")
 
     async def _cargar_tasa(self):
@@ -157,6 +226,24 @@ class VendedorApp:
         )
         self.vendor = vendedor
         await self._cargar_tasa()
+        try:
+            sesion = await self.run_blocking(
+                self.store.crear_sesion, vendedor
+            )
+            self.session_token = sesion.get("token", "")
+            self.session_expira = int(sesion.get("expira_epoch", 0) or 0)
+            session_store.guardar_sesion(
+                self.session_token, self.vendor, self.session_expira,
+                self.rate,
+            )
+        except Exception:
+            self.session_token = ""
+            self.session_expira = 0
+            self.toast(
+                "Sesión iniciada, pero no se pudo guardar para el próximo "
+                "arranque.",
+                "warning",
+            )
         self.show_shell()
 
     async def solicitar_registro(self, cedula: str):
@@ -179,12 +266,24 @@ class VendedorApp:
         self.vendor = vendedor
         self.login_modo = "login"
         await self._cargar_tasa()
+        try:
+            sesion = await self.run_blocking(
+                self.store.crear_sesion, vendedor
+            )
+            self.session_token = sesion.get("token", "")
+            self.session_expira = int(sesion.get("expira_epoch", 0) or 0)
+            session_store.guardar_sesion(
+                self.session_token, self.vendor, self.session_expira,
+                self.rate,
+            )
+        except Exception:
+            self.session_token = ""
+            self.session_expira = 0
         self.show_shell()
         self.toast("Registro completado. Bienvenido a Mayorix.", "success")
 
     def logout(self):
-        self.show_login()
-        self.toast("Sesión cerrada.", "info")
+        self._cerrar_sesion(aviso="Sesión cerrada.")
 
     def show_shell(self):
         self.page.title = "Mayorix · Vendedor"
@@ -461,7 +560,7 @@ def main(page: ft.Page):
     )
     app = VendedorApp(page)
     if app.store.configurado:
-        app.show_login()
+        app.iniciar_sesion_o_login()
     else:
         app.show_setup()
 

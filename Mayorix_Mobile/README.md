@@ -16,6 +16,20 @@ internet**, sin depender de la red Wi-Fi del escritorio.
   el escritorio, código único notificado al administrador y creación de la
   contraseña definitiva.
 
+## Sesión persistente
+
+- Al iniciar sesión o completar el registro, la app crea un **token aleatorio**
+  y lo guarda en el almacenamiento privado del dispositivo.
+- El token se guarda hasheado en la colección `sesiones_movil` de Atlas.
+- La contraseña nunca se guarda en el teléfono.
+- Al volver a abrir la app, si el token local sigue vigente, entra directamente
+  al catálogo sin mostrar el login.
+- La sesión dura 30 días y se valida en segundo plano contra Atlas.
+- Si el token fue revocado o expiró, la app limpia la sesión y vuelve al login.
+- Si no hay internet, conserva la sesión local y muestra los errores de
+  conexión sin obligar a iniciar sesión.
+- Cerrar sesión borra el archivo local y revoca el token en Atlas.
+
 ## Flujo de primer registro
 
 1. El administrador registra al vendedor con su cédula en el escritorio.
@@ -68,7 +82,7 @@ python main.py
 cd D:\PROYECTOS\Mayorix\Mayorix_Mobile
 flet build apk . --project "Mayorix Vendedor" `
   --org com.droptech --bundle-id com.droptech.mayorix.vendedor `
-  --build-version 1.1.0 --build-number 2 --yes
+  --build-version 1.1.2 --build-number 4 --yes
 ```
 
 El APK queda en `build/apk/Mayorix Vendedor.apk`.

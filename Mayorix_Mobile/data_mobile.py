@@ -28,6 +28,7 @@ from pymongo.errors import DuplicateKeyError, PyMongoError
 PASSWORD_ITERATIONS = 160000
 CODIGO_TTL_SEGUNDOS = 10 * 60
 MAX_INTENTOS_CODIGO = 5
+SESSION_TTL_DIAS = 30
 DB_POR_DEFECTO = "mayorix"
 
 
@@ -72,7 +73,11 @@ def guardar_uri_configurada(uri: str) -> None:
 
 
 def leer_db_configurada() -> str:
-    return os.getenv("MONGODB_DB", "").strip() or DB_POR_DEFECTO
+    return (
+        os.getenv("MONGO_DB", "").strip()
+        or os.getenv("MONGODB_DB", "").strip()
+        or DB_POR_DEFECTO
+    )
 
 
 def limpiar_texto(valor) -> str:
@@ -122,13 +127,51 @@ class MobileStore:
         self.vendedores = None
         self.accesos = None
         self.solicitudes = None
+        self.sesiones = None
         self._indices_listos = False
+        self._connection_error = ""
         if self.uri:
-            self._conectar()
+            try:
+                self._conectar()
+            except Exception as exc:
+                self._connection_error = str(exc)
+                self.client = None
+                self.db = None
+                self.inventario = None
+                self.pedidos = None
+                self.vendedores = None
+                self.accesos = None
+                self.solicitudes = None
+                self.sesiones = None
 
     @property
     def configurado(self) -> bool:
-        return bool(self.uri and self.client is not None)
+        return bool(self.uri)
+
+    def _asegurar_conexion(self) -> None:
+        if self.client is not None and self.vendedores is not None:
+            return
+        if not self.uri:
+            raise ValueError(
+                "La aplicación no tiene configurada una URI de MongoDB."
+            )
+        try:
+            self._conectar()
+            self._connection_error = ""
+        except Exception as exc:
+            self._connection_error = str(exc)
+            self.client = None
+            self.db = None
+            self.inventario = None
+            self.pedidos = None
+            self.vendedores = None
+            self.accesos = None
+            self.solicitudes = None
+            self.sesiones = None
+            raise ValueError(
+                "No se pudo conectar con MongoDB Atlas. Revisa la red del "
+                "teléfono y la lista de acceso del clúster."
+            ) from exc
 
     def _conectar(self):
         self.client = MongoClient(
@@ -144,6 +187,7 @@ class MobileStore:
         self.vendedores = self.db["vendedores"]
         self.accesos = self.db["accesos_vendedor"]
         self.solicitudes = self.db["solicitudes_registro"]
+        self.sesiones = self.db["sesiones_movil"]
 
     def configurar(self, uri: str, db_name: str | None = None) -> None:
         texto = str(uri or "").strip()
@@ -152,15 +196,15 @@ class MobileStore:
         if not texto.lower().startswith(("mongodb://", "mongodb+srv://")):
             raise ValueError("La URI debe comenzar con mongodb:// o mongodb+srv://.")
         db_nombre = db_name or self.db_name or DB_POR_DEFECTO
-        prueba = MongoClient(
-            texto,
-            serverSelectionTimeoutMS=9000,
-            connectTimeoutMS=9000,
-            appname="MayorixVendedorSetup",
-        )
         try:
+            prueba = MongoClient(
+                texto,
+                serverSelectionTimeoutMS=9000,
+                connectTimeoutMS=9000,
+                appname="MayorixVendedorSetup",
+            )
             prueba.admin.command("ping")
-        except PyMongoError as exc:
+        except Exception as exc:
             raise ValueError(
                 "No se pudo conectar con Atlas. Revisa la URI, la red y la "
                 "lista de acceso del clúster."
@@ -206,6 +250,16 @@ class MobileStore:
             )
             self.inventario.create_index([("codigo", ASCENDING)], unique=True)
             self.inventario.create_index([("descripcion", ASCENDING)])
+            self.sesiones.create_index(
+                [("token_hash", ASCENDING)], unique=True
+            )
+            self.sesiones.create_index(
+                [("vendedor_codigo", ASCENDING), ("activo", ASCENDING)]
+            )
+            self.sesiones.create_index(
+                [("expira_en", ASCENDING)], expireAfterSeconds=0,
+                name="sesion_ttl",
+            )
         except PyMongoError:
             pass
         self._indices_listos = True
@@ -215,6 +269,7 @@ class MobileStore:
     # ------------------------------------------------------------------
 
     def buscar_vendedor_por_cedula(self, cedula: str) -> dict | None:
+        self._asegurar_conexion()
         norm = normalizar_cedula(cedula)
         if len(norm) < 5:
             return None
@@ -276,6 +331,99 @@ class MobileStore:
         self.asegurar_indices()
         return self._vendedor_publico(vendedor)
 
+    # ------------------------------------------------------------------
+    # Sesiones persistentes del dispositivo
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _hash_token(token: str) -> str:
+        return hashlib.sha256(str(token).encode("utf-8")).hexdigest()
+
+    def crear_sesion(self, vendedor: dict) -> dict:
+        self._asegurar_conexion()
+        self.asegurar_indices()
+        token = secrets.token_urlsafe(48)
+        ahora = datetime.now(timezone.utc)
+        expira = ahora + timedelta(days=SESSION_TTL_DIAS)
+        documento = {
+            "token_hash": self._hash_token(token),
+            "vendedor_codigo": vendedor.get("codigo", ""),
+            "cedula_norm": vendedor.get("cedula_norm", ""),
+            "nombre": vendedor.get("nombre", ""),
+            "activo": True,
+            "creado_en": ahora.isoformat(timespec="seconds"),
+            "ultima_actividad": ahora.isoformat(timespec="seconds"),
+            "expira_en": expira,
+            "expira_epoch": int(expira.timestamp()),
+            "origen": "android",
+        }
+        self.sesiones.insert_one(documento)
+        return {
+            "token": token,
+            "expira_epoch": documento["expira_epoch"],
+            "vendor": self._vendedor_publico(vendedor),
+        }
+
+    def validar_sesion(self, token: str) -> dict | None:
+        self._asegurar_conexion()
+        if not token:
+            return None
+        ahora = int(time.time())
+        sesion = self.sesiones.find_one(
+            {"token_hash": self._hash_token(token), "activo": True}
+        )
+        if not sesion:
+            return None
+        if int(sesion.get("expira_epoch", 0)) < ahora:
+            self.sesiones.update_one(
+                {"_id": sesion["_id"]},
+                {"$set": {"activo": False, "revocado_en": ahora_iso()}},
+            )
+            return None
+        vendedor = self.vendedores.find_one(
+            {"codigo": sesion.get("vendedor_codigo", "")},
+            {"_id": 0, "codigo": 1, "nombre": 1, "cedula": 1,
+             "cedula_norm": 1, "telefono": 1, "ciudad": 1, "estado": 1},
+        )
+        if not vendedor or normalizar_texto(
+            vendedor.get("estado", "Activo")
+        ) not in ("activo", "activa"):
+            self._revocar_documento(sesion)
+            return None
+        if not self._acceso_de(vendedor):
+            self._revocar_documento(sesion)
+            return None
+        self.sesiones.update_one(
+            {"_id": sesion["_id"]},
+            {"$set": {"ultima_actividad": ahora_iso()}},
+        )
+        return self._vendedor_publico(vendedor)
+
+    def _revocar_documento(self, sesion: dict) -> None:
+        try:
+            self.sesiones.update_one(
+                {"_id": sesion["_id"]},
+                {"$set": {"activo": False, "revocado_en": ahora_iso()}},
+            )
+        except PyMongoError:
+            pass
+
+    def revocar_sesion(self, token: str) -> None:
+        if not token or self.client is None:
+            return
+        self.sesiones.update_one(
+            {"token_hash": self._hash_token(token)},
+            {"$set": {"activo": False, "revocado_en": ahora_iso()}},
+        )
+
+    def revocar_sesiones_vendedor(self, vendedor_codigo: str) -> None:
+        if not vendedor_codigo or self.client is None:
+            return
+        self.sesiones.update_many(
+            {"vendedor_codigo": vendedor_codigo, "activo": True},
+            {"$set": {"activo": False, "revocado_en": ahora_iso()}},
+        )
+
     def estado_registro(self, cedula: str) -> dict:
         vendedor = self.buscar_vendedor_por_cedula(cedula)
         if not vendedor:
@@ -303,6 +451,7 @@ class MobileStore:
         }
 
     def crear_solicitud_registro(self, cedula: str) -> dict:
+        self._asegurar_conexion()
         self.asegurar_indices()
         estado = self.estado_registro(cedula)
         vendedor = estado["vendedor"]
@@ -372,6 +521,7 @@ class MobileStore:
 
     def confirmar_registro(self, cedula: str, codigo: str,
                            password: str) -> dict:
+        self._asegurar_conexion()
         self.asegurar_indices()
         vendedor = self.buscar_vendedor_por_cedula(cedula)
         if not vendedor:
@@ -442,6 +592,7 @@ class MobileStore:
             datos["email"] = correo
             datos["created_at"] = ahora_iso()
             self.accesos.insert_one(datos)
+        self.revocar_sesiones_vendedor(vendedor.get("codigo", ""))
         self.solicitudes.update_one(
             {"solicitud_id": solicitud["solicitud_id"]},
             {"$set": {"estado": "usado", "usado_at": ahora_iso()}},
@@ -480,6 +631,7 @@ class MobileStore:
         }
 
     def catalogo(self, q: str = "", skip: int = 0, limit: int = 20) -> dict:
+        self._asegurar_conexion()
         inicio = max(0, int(skip))
         cantidad = max(1, min(50, int(limit)))
         filtro = self._filtro_catalogo(q)
@@ -520,6 +672,7 @@ class MobileStore:
     # ------------------------------------------------------------------
 
     def crear_pedido(self, vendedor: dict, datos: dict) -> dict:
+        self._asegurar_conexion()
         cliente = limpiar_texto(datos.get("cliente_nombre", ""))
         ciudad = limpiar_texto(datos.get("cliente_ciudad", ""))
         condicion = limpiar_texto(datos.get("condicion", "Contado"))
@@ -624,6 +777,7 @@ class MobileStore:
         return pedido
 
     def listar_pedidos(self, vendedor_codigo: str, limit: int = 100) -> list[dict]:
+        self._asegurar_conexion()
         cursor = (
             self.pedidos.find({"vendedor_id": vendedor_codigo}, {"_id": 0})
             .sort([("fecha", DESCENDING), ("pedido_id", DESCENDING)])
@@ -632,6 +786,7 @@ class MobileStore:
         return [dict(doc) for doc in cursor]
 
     def resumen_vendedor(self, vendedor_codigo: str) -> dict:
+        self._asegurar_conexion()
         pipeline = [
             {"$match": {"vendedor_id": vendedor_codigo}},
             {"$group": {
