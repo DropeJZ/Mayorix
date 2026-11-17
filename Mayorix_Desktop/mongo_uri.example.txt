@@ -1,0 +1,14 @@
+# Configuración de MongoDB para Mayorix
+# ------------------------------------------------------------
+# 1. Copia este archivo como "mongo_uri.txt".
+# 2. Reemplaza la URI por la de tu instancia local o cluster de MongoDB Atlas.
+# 3. Colócalo junto a database.py (código fuente) o junto a Mayorix.exe
+#    (ejecutable empaquetado).
+# También puedes usar la variable de entorno MONGODB_URI.
+#
+# Ejemplos:
+# mongodb://localhost:27017/
+# mongodb://usuario:clave@127.0.0.1:27017/?authSource=admin
+# mongodb+srv://usuario:clave@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
+#
+# Base de datos por defecto: mayorix (configurable con MONGODB_DB).

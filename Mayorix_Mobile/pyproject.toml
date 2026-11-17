@@ -1,0 +1,23 @@
+[project]
+name = "mayorix-vendedor"
+version = "1.1.0"
+description = "Mayorix · Red comercial móvil para vendedores de Mayor Disluda"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "flet==1.0.4",
+    "pymongo[srv]>=4.10",
+    "dnspython>=2.6",
+]
+
+[tool.flet]
+org = "com.droptech"
+product = "Mayorix Vendedor"
+company = "DropeTech"
+copyright = "Copyright © 2026 DropeTech"
+build_number = 1
+build_version = "1.1.0"
+
+[tool.flet.app]
+path = "."
+module = "main"

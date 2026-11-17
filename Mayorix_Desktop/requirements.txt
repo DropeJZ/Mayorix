@@ -1,0 +1,22 @@
+# Mayorix Desktop · dependencias
+# Flet 1.0 cambió la API de controles; este prototipo está construido para esa versión.
+flet==1.0.4
+
+# MongoDB
+pymongo>=4.6
+dnspython>=2.6
+
+# Microservicio de tasa BCV
+fastapi>=0.115
+uvicorn>=0.30
+
+# Importación de inventario
+pandas>=2.2
+openpyxl>=3.1
+pypdf>=4.0
+
+# Fotos, compresión y OCR simulado
+Pillow>=10.0
+
+# OCR real opcional (requiere el binario de Tesseract instalado en el sistema):
+# pytesseract>=0.3.13

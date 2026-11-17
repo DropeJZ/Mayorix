@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: mayorix
+    runtime: python
+    plan: free
+    autoDeploy: true
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.13.7"
+      - key: MONGO_DB
+        value: mayorix
+      - key: MONGO_URI
+        sync: false
+      - key: FLET_FORCE_WEB_SERVER
+        value: "1"
+      - key: PYTHONUTF8
+        value: "1"
+      - key: PYTHONIOENCODING
+        value: "utf-8"

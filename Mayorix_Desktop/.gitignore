@@ -1,0 +1,11 @@
+﻿__pycache__/
+*.py[cod]
+.flet/
+build/
+dist/
+*.spec
+builds/windows_exe/*.exe
+builds/android_apk/*.apk
+mongo_uri.txt
+uploads/
+tasa_bcv.json

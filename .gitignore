@@ -1,0 +1,36 @@
+# Entornos y caché Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secretos y configuración local
+.env
+.env.*
+!.env.example
+mongo_uri.txt
+atlas_config.py
+.mobile_secret
+*.pem
+*.key
+
+# Datos temporales
+tasa_bcv.json
+*.log
+Thumbs.db
+.DS_Store
+
+# Artefactos de build y binarios grandes
+build/
+dist/
+*.spec
+*.exe
+*.apk
+*.aab
+Mayorix_Mobile/build/
+Mayorix_Mobile/.flet/
