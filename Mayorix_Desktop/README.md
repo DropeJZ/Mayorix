@@ -6,7 +6,7 @@ Aplicación de escritorio de producción, **exclusiva para la administración de
 login corporativo, dashboard financiero, inventario paginado conectado a
 MongoDB, importación de Excel/PDF, reconocimiento visual de repuestos, pedidos
 recibidos, red comercial y finanzas. Todos los módulos están operativos en la
-edición **2.1.3**.
+edición **2.1.5**.
 
 ## Ejecutar
 
@@ -87,9 +87,11 @@ La tasa oficial del dólar se obtiene mediante un microservicio FastAPI:
 
 ## Módulos
 
-> **Edición 2.1.3:** Dashboard, Repuestos, Pedidos recibidos, Vendedores y
+> **Edición 2.1.5:** Dashboard, Repuestos, Pedidos recibidos, Vendedores y
 > Finanzas están habilitados y conectados a MongoDB. Ayuda, Configuración y el
-> indicador de conexión también son interactivos.
+> indicador de conexión también son interactivos. El Login muestra un carrusel
+> de imágenes con transición suave, capa oscura y estado de MongoDB legible.
+> La URI se puede definir por `MONGO_URI`, `.env` o `mongo_uri.txt`.
 
 ### Dashboard
 - KPIs financieros en USD: ventas del mes, pedidos activos, cuentas por cobrar.
@@ -208,6 +210,13 @@ python setup_mongodb.py --vaciar
 
 ### Configuración manual
 
+El orden de lectura de la URI es:
+
+1. Variable de entorno `MONGO_URI` (o `MONGODB_URI`).
+2. Archivo `.env` junto a `Mayorix.exe`, en la carpeta del proyecto o en la raíz.
+3. Archivo `mongo_uri.txt` junto a `Mayorix.exe`, en la carpeta del proyecto,
+   en la raíz o en el directorio de trabajo.
+
 Variable de entorno:
 
 ```bash
@@ -217,7 +226,14 @@ python main.py
 ```
 
 También se puede editar `mongo_uri.txt` junto a `database.py` (código fuente)
-o junto a `Mayorix.exe`, copiando `mongo_uri.example.txt`.
+o junto a `Mayorix.exe`, copiando `mongo_uri.example.txt`. El `.env` acepta
+líneas como `MONGO_URI="mongodb+srv://..."`. Se admiten BOM, comillas y punto
+y coma final; no hace falta codificar la contraseña si no tiene caracteres
+reservados (`@`, `:`, `/`, `?`, `#`).
+
+Al pulsar **Iniciar sesión** con la app en modo respaldo, la PC reintenta la
+conexión una vez antes de validar las credenciales, para recuperarse de cortes
+breves de red sin reiniciar.
 
 Si no hay URI configurada se intenta `mongodb://localhost:27017/mayorix`.
 Si la conexión falla, tarda o el servidor exige autenticación, la app activa
@@ -284,6 +300,7 @@ flet pack main.py \
   --name Mayorix \
   --icon assets/mayorix.ico \
   --add-data "assets;assets" \
+  --add-data "iconos_desktop;iconos_desktop" \
   --hidden-import pandas \
   --hidden-import openpyxl \
   --hidden-import openpyxl.cell._writer \
@@ -304,8 +321,8 @@ flet pack main.py \
   --product-name "Mayorix" \
   --file-description "Mayorix · Sistema de Gestión Mayorista" \
   --company-name "DropeTech" \
-  --product-version "2.1.3" \
-  --file-version "2.1.3.0" \
+  --product-version "2.1.5" \
+  --file-version "2.1.5.0" \
   --copyright "Copyright © 2026 DropeTech"
 ```
 

@@ -13,12 +13,12 @@ de respaldo local.
 
 Regenerar desde Mayorix_Desktop:
 
-    flet pack main.py --name Mayorix --icon assets/mayorix.ico --add-data "assets;assets" --hidden-import pandas --hidden-import openpyxl --hidden-import openpyxl.cell._writer --hidden-import pypdf --hidden-import pymongo --hidden-import dns --hidden-import dns.resolver --hidden-import PIL.Image --hidden-import fastapi --hidden-import starlette --hidden-import pydantic --hidden-import uvicorn --hidden-import uvicorn.logging --hidden-import uvicorn.loops.auto --hidden-import uvicorn.protocols.http.auto --hidden-import uvicorn.protocols.websockets.auto --hidden-import uvicorn.lifespan.on --product-name "Mayorix" --file-description "Mayorix · Sistema de Gestión Mayorista" --company-name "DropeTech" --product-version "2.1.3" --file-version "2.1.3.0" --copyright "Copyright © 2026 DropeTech"
+    flet pack main.py --name Mayorix --icon assets/mayorix.ico --add-data "assets;assets" --add-data "iconos_desktop;iconos_desktop" --hidden-import pandas --hidden-import openpyxl --hidden-import openpyxl.cell._writer --hidden-import pypdf --hidden-import pymongo --hidden-import dns --hidden-import dns.resolver --hidden-import PIL.Image --hidden-import fastapi --hidden-import starlette --hidden-import pydantic --hidden-import uvicorn --hidden-import uvicorn.logging --hidden-import uvicorn.loops.auto --hidden-import uvicorn.protocols.http.auto --hidden-import uvicorn.protocols.websockets.auto --hidden-import uvicorn.lifespan.on --product-name "Mayorix" --file-description "Mayorix · Sistema de Gestión Mayorista" --company-name "DropeTech" --product-version "2.1.5" --file-version "2.1.5.0" --copyright "Copyright © 2026 DropeTech"
 
 El artefacto resultante (dist/Mayorix.exe) se copia a la raíz como Mayorix.exe.
 
 Notas:
-- Versión 2.1.3.
+- Versión 2.1.5.
 - Ventana estándar de Windows de 1280 x 800: barra de título nativa,
   minimizar, maximizar/restaurar, redimensionar, mover y cerrar normalmente.
 - Dashboard, Repuestos, Pedidos recibidos, Vendedores y Finanzas operativos.
@@ -33,3 +33,6 @@ Notas:
 - No incluye acceso de vendedores: es una app exclusiva de administración.
 
 - Registros móviles: la barra superior muestra el botón Móvil con los códigos de verificación pendientes generados por la app Android.
+
+- El panel izquierdo del login usa un carrusel de imagenes desde iconos_desktop
+  (incluidas en el ejecutable), con fundido suave cada 5 s y capa oscura legible.

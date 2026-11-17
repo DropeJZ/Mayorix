@@ -11,12 +11,40 @@ la opción de registro desaparece de la interfaz.
 
 from __future__ import annotations
 
+import asyncio
+import base64
+import mimetypes
 import re
+from pathlib import Path
 
 import flet as ft
 
 import database
 from . import ui
+
+ICONOS_LOGIN = Path(__file__).resolve().parent.parent / "iconos_desktop"
+EXTENSIONES_IMAGEN = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+
+
+def _imagenes_login() -> list[str]:
+    """Carga las imágenes locales como data URI para escritorio y web."""
+    if not ICONOS_LOGIN.is_dir():
+        return []
+    imagenes = []
+    for archivo in sorted(
+        ICONOS_LOGIN.iterdir(), key=lambda p: p.name.lower()
+    ):
+        if not archivo.is_file() or archivo.suffix.lower() not in EXTENSIONES_IMAGEN:
+            continue
+        try:
+            if archivo.stat().st_size > 8 * 1024 * 1024:
+                continue
+            mime = mimetypes.guess_type(str(archivo))[0] or "image/jpeg"
+            contenido = base64.b64encode(archivo.read_bytes()).decode("ascii")
+            imagenes.append(f"data:{mime};base64,{contenido}")
+        except OSError:
+            continue
+    return imagenes
 
 
 def _campo(hint: str, icono, password: bool = False) -> ft.TextField:
@@ -294,8 +322,20 @@ def login_view(
             return
         error_lbl.value = ""
         page.update()
-        if total_usuarios == 0:
-            error_lbl.value = "No hay administradores registrados. Crea la cuenta inicial."
+        usuarios = total_usuarios
+        if not db.conectado:
+            # La PC pudo arrancar sin red: reintenta antes de validar credenciales.
+            db.reconectar_rapido()
+            try:
+                usuarios = db.contar_usuarios()
+            except Exception:
+                usuarios = None
+        if usuarios == 0:
+            error_lbl.value = (
+                "No hay administradores registrados. Crea la cuenta inicial."
+                if db.conectado
+                else db.detalle_estado
+            )
             page.update()
             return
         try:
@@ -343,10 +383,25 @@ def login_view(
         padding=ft.Padding.only(left=10, right=2, top=2, bottom=2),
     )
 
-    panel_marca = ft.Container(
-        width=360,
-        bgcolor=ui.INK,
-        padding=ft.Padding.symmetric(horizontal=34, vertical=32),
+    imagenes_login = _imagenes_login()
+
+    def _capa_login(src: str, visible: bool) -> ft.Container:
+        """Capa de fondo que siempre cubre el panel completo."""
+        return ft.Container(
+            expand=True,
+            opacity=1.0 if visible else 0.0,
+            animate_opacity=ft.Animation(700, ft.AnimationCurve.EASE_IN_OUT),
+            image=ft.DecorationImage(src=src, fit=ft.BoxFit.COVER),
+        )
+
+    if imagenes_login:
+        capa_a = _capa_login(imagenes_login[0], True)
+        capa_b = _capa_login(imagenes_login[1 % len(imagenes_login)], False)
+        galeria_login = ft.Stack([capa_a, capa_b], expand=True)
+    else:
+        galeria_login = ft.Container(expand=True, bgcolor=ui.INK)
+
+    contenido_marca = ft.Container(
         content=ft.Column(
             [
                 ft.Row(
@@ -362,7 +417,7 @@ def login_view(
                                 ui.txt("Mayorix", 22, ui.WHITE, ui.W_700),
                                 ft.Text(
                                     "POWERED BY DROPTECH",
-                                    size=7.5, color="#64748B", weight=ui.W_700,
+                                    size=7.5, color="#CBD5E1", weight=ui.W_700,
                                     style=ft.TextStyle(letter_spacing=1.2),
                                 ),
                             ],
@@ -377,18 +432,57 @@ def login_view(
                 ft.Column(
                     [
                         ui.txt("Mayor Disluda", 24, ui.WHITE, ui.W_700),
-                        ui.txt("Administración central", 11, "#94A3B8"),
+                        ui.txt("Administración central", 11, "#E2E8F0"),
                     ],
                     spacing=6,
                 ),
                 ft.Container(expand=True),
                 estado_conexion,
-                ui.txt("Repuestos automotrices · Venezuela", 8.3, "#64748B"),
+                ui.txt("Repuestos automotrices · Venezuela", 8.3, "#CBD5E1"),
             ],
             spacing=18,
             expand=True,
         ),
+        padding=ft.Padding.symmetric(horizontal=34, vertical=32),
+        expand=True,
     )
+
+    capa_oscura = ft.Container(
+        expand=True,
+        bgcolor=ft.Colors.with_opacity(0.70, "#0B1220"),
+    )
+
+    panel_marca = ft.Container(
+        width=360,
+        bgcolor=ui.INK,
+        clip_behavior=ft.ClipBehavior.HARD_EDGE,
+        content=ft.Stack(
+            [galeria_login, capa_oscura, contenido_marca],
+            expand=True,
+        ),
+    )
+
+    if len(imagenes_login) > 1:
+        async def rotar_imagenes_login():
+            indice = 0
+            mostrar_a = True
+            while True:
+                await asyncio.sleep(5.0)
+                try:
+                    indice = (indice + 1) % len(imagenes_login)
+                    nueva = capa_b if mostrar_a else capa_a
+                    anterior = capa_a if mostrar_a else capa_b
+                    nueva.image = ft.DecorationImage(
+                        src=imagenes_login[indice], fit=ft.BoxFit.COVER,
+                    )
+                    nueva.opacity = 1.0
+                    anterior.opacity = 0.0
+                    mostrar_a = not mostrar_a
+                    page.update()
+                except Exception:
+                    break
+
+        page.run_task(rotar_imagenes_login)
 
     registro_link = ft.Row(
         [
@@ -421,7 +515,7 @@ def login_view(
                     [
                         ui.txt("© 2026 DropeTech", 8.3, ui.MUTED_2),
                         ft.Container(expand=True),
-                        ui.txt("Mayorix v2.1.3", 8.3, ui.MUTED_2),
+                        ui.txt("Mayorix v2.1.5", 8.3, ui.MUTED_2),
                     ],
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),

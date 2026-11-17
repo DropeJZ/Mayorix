@@ -2475,7 +2475,7 @@ def open_company_dialog(app):
         ("Moneda secundaria", data.EMPRESA["moneda_secundaria"]),
         ("Tasa de referencia", f"Bs. {data.TASA_VES:,.2f} por USD"),
         ("Periodo contable", data.EMPRESA["periodo"]),
-        ("Versión", "Mayorix Desktop v2.1.3"),
+        ("Versión", "Mayorix Desktop v2.1.5"),
     ]
     filas = [
         ft.Row([txt(label, 9.5, MUTED), ft.Container(expand=True), txt(valor, 9.5, INK, W_500)])

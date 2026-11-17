@@ -366,7 +366,7 @@ class EmpresaShell:
                 estado_db,
                 ft.Row(
                     [
-                        ui.txt("Mayorix v2.1.3", 8.3, ui.MUTED_2),
+                        ui.txt("Mayorix v2.1.5", 8.3, ui.MUTED_2),
                         ft.Container(expand=True),
                         ui.txt("DropeTech", 8.3, ui.MUTED_2),
                     ],
@@ -835,7 +835,7 @@ class EmpresaShell:
                     10, ui.MUTED, max_lines=5,
                 ),
                 ui.txt(
-                    "Soporte técnico · DropeTech · Mayorix Desktop v2.1.3",
+                    "Soporte técnico · DropeTech · Mayorix Desktop v2.1.5",
                     9.5, ui.MUTED_2,
                 ),
             ],

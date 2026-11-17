@@ -155,17 +155,68 @@ def uri_visible(uri: str) -> str:
     return re.sub(r"(mongodb(?:\+srv)?://)[^/@]+@", r"\1***@", str(uri))
 
 
+def _limpiar_uri(valor: str) -> str:
+    """Quita BOM, comillas, espacios y punto y coma final de una URI."""
+    texto = str(valor or "").strip().lstrip("\ufeff").strip()
+    if texto[:1] in ("\"", "'"):
+        comilla = texto[0]
+        fin = texto.find(comilla, 1)
+        texto = texto[1:fin] if fin != -1 else texto[1:]
+    texto = texto.strip()
+    while texto.endswith((";", ",")):
+        texto = texto[:-1].strip()
+    return texto
+
+
+def _leer_env_archivo(archivo: Path) -> str:
+    """Lee MONGO_URI desde un .env sin depender de python-dotenv."""
+    if not archivo.is_file():
+        return ""
+    try:
+        for linea in archivo.read_text(encoding="utf-8-sig").splitlines():
+            texto = linea.strip()
+            if not texto or texto.startswith("#"):
+                continue
+            if texto.startswith("export "):
+                texto = texto[7:].strip()
+            if not texto.startswith(("MONGO_URI=", "MONGODB_URI=")):
+                continue
+            valor = _limpiar_uri(texto.split("=", 1)[1])
+            if valor:
+                return valor
+    except OSError:
+        pass
+    return ""
+
+
 def _leer_uri() -> str:
-    uri = os.getenv("MONGO_URI", "").strip()
+    uri = _limpiar_uri(os.getenv("MONGO_URI", "") or os.getenv("MONGODB_URI", ""))
     if uri:
         return uri
-    candidatos = [PROJECT_DIR / "mongo_uri.txt"]
+
+    candidatos_env = [
+        PROJECT_DIR / ".env",
+        PROJECT_DIR.parent / ".env",
+        Path.cwd() / ".env",
+    ]
+    if getattr(sys, "frozen", False):
+        candidatos_env.insert(0, Path(sys.executable).resolve().parent / ".env")
+    for archivo_env in candidatos_env:
+        uri = _leer_env_archivo(archivo_env)
+        if uri:
+            return uri
+
+    candidatos = [
+        PROJECT_DIR / "mongo_uri.txt",
+        PROJECT_DIR.parent / "mongo_uri.txt",
+        Path.cwd() / "mongo_uri.txt",
+    ]
     if getattr(sys, "frozen", False):
         candidatos.insert(0, Path(sys.executable).resolve().parent / "mongo_uri.txt")
     for archivo in candidatos:
         if archivo.is_file():
             try:
-                contenido = archivo.read_text(encoding="utf-8").strip()
+                contenido = _limpiar_uri(archivo.read_text(encoding="utf-8-sig"))
                 if contenido:
                     return contenido
             except OSError:
@@ -1021,10 +1072,26 @@ class Database:
 
     def reconectar(self) -> tuple[bool, str]:
         """Nuevo intento manual con un margen mayor para redes lentas."""
-        self._conectar(timeout_ms=max(12000, _timeout_conexion(self.uri)))
+        self._reintentar_conexion(max(12000, _timeout_conexion(self.uri)))
         if self.modo == "mongodb":
             return True, "MongoDB conectado correctamente."
         return False, self.error_legible
+
+    def reconectar_rapido(self) -> tuple[bool, str]:
+        """Reintento breve antes de iniciar sesión, sin bloquear demasiado."""
+        if self.modo == "mongodb":
+            return True, "MongoDB conectado correctamente."
+        self._reintentar_conexion(6000)
+        if self.modo == "mongodb":
+            return True, "MongoDB conectado correctamente."
+        return False, self.error_legible
+
+    def _reintentar_conexion(self, timeout_ms: int) -> None:
+        # Si sigue caído, conserva las cuentas creadas en el respaldo local.
+        respaldo = self.store if isinstance(self.store, MemoryStore) else None
+        self._conectar(timeout_ms=timeout_ms)
+        if self.modo != "mongodb" and respaldo is not None:
+            self.store = respaldo
 
     # Delegaciones ------------------------------------------------------
     def __getattr__(self, nombre):
