@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
-DESKTOP_DIR = BASE_DIR / "Mayorix_Desktop"
+DESKTOP_DIR = BASE_DIR.parent / "src" / "Mayorix_Desktop"
 
 try:
     from dotenv import load_dotenv

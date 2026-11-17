@@ -1,4 +1,4 @@
-Mayorix Vendedor · APK Android 1.1.3
+Mayorix Vendedor · APK Android 1.1.4
 ====================================
 
 APK universal para Android 7.0+ (minSdk 24), conexión directa a MongoDB Atlas.
@@ -12,7 +12,7 @@ Copia de build:
 Datos del paquete:
 - Nombre: Mayorix Vendedor
 - Paquete: com.droptech.mayorix.vendedor
-- Versión: 1.1.3 (versionCode 5)
+- Versión: 1.1.4 (versionCode 6)
 - Tamaño: 142.858.011 bytes
 - SHA-256: B28DD6D750629682CE625B54D773CD4B4B835995D4C84EFD4F9012568BEBC6B0
 - Firma: debug (instalable por sideload; para producción usar keystore release)
@@ -42,7 +42,7 @@ Funcionalidad
 APK preconfigurado (instalación asistida)
 -----------------------------------------
     D:\PROYECTOS\Mayorix\Mayorix_Vendedor_preconfig.apk
-- Versión: 1.1.3 (versionCode 5)
+- Versión: 1.1.4 (versionCode 6)
 - Tamaño: 142.858.219 bytes
 - SHA-256: 08DA960936A90DFB6E5FA6C5164B40A49785D23D9CC4B5B658724792DBFC2334
 - Incluye atlas_config.pyc con la URI del clúster; abre directo al login.
@@ -69,7 +69,7 @@ Recompilar
     cd D:\PROYECTOS\Mayorix\Mayorix_Mobile
     flet build apk . --project "Mayorix Vendedor" `
       --org com.droptech --bundle-id com.droptech.mayorix.vendedor `
-      --build-version 1.1.3 --build-number 5 --yes
+      --build-version 1.1.4 --build-number 6 --yes
 
 El APK incluye pymongo y extensiones nativas para arm64-v8a, armeabi-v7a y
 x86_64. No incluye URI, `mongo_uri.txt` ni el backend local.

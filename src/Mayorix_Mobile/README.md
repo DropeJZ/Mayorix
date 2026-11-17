@@ -19,7 +19,7 @@ internet**, sin depender de la red Wi-Fi del escritorio.
 ## Sesión persistente
 
 - Al iniciar sesión o completar el registro, la app crea un **token aleatorio**
-  y lo guarda en el almacenamiento privado del dispositivo.
+  y lo guarda con `ft.SharedPreferences` (el equivalente de `client_storage`).
 - El token se guarda hasheado en la colección `sesiones_movil` de Atlas.
 - La contraseña nunca se guarda en el teléfono.
 - Al volver a abrir la app, si el token local sigue vigente, entra directamente
@@ -28,7 +28,7 @@ internet**, sin depender de la red Wi-Fi del escritorio.
 - Si el token fue revocado o expiró, la app limpia la sesión y vuelve al login.
 - Si no hay internet, conserva la sesión local y muestra los errores de
   conexión sin obligar a iniciar sesión.
-- Cerrar sesión borra el archivo local y revoca el token en Atlas.
+- Cerrar sesión borra la entrada local y revoca el token en Atlas.
 
 ## Flujo de primer registro
 
@@ -51,10 +51,11 @@ APK Android (Flet + pymongo)
 MongoDB Atlas · base mayorix
 ```
 
-El APK se conecta directamente a Atlas. La URI **no viaja dentro del APK**:
-en el primer arranque se muestra una pantalla de **Configuración del
-dispositivo** para que el administrador la pegue una sola vez. Se guarda en el
-almacenamiento privado de la aplicación (`FLET_APP_STORAGE_DATA`).
+El APK se conecta directamente a Atlas. La URI **va fija dentro del APK**
+(en `atlas_config.py`, generado al compilar) con parámetros de TLS robustos
+(`tls=true` y `tlsAllowInvalidCertificates=true`), por lo que **el usuario no
+introduce ni configura la URI** en ningún momento: abre directo al login o, si
+hay sesión guardada, directo al catálogo.
 
 **Importante:** para que funcione desde cualquier red móvil, Atlas debe
 permitir las IP de los teléfonos en **Network Access**. Para uso fuera de la red
@@ -77,10 +78,11 @@ o define esa variable antes de abrir la app en desarrollo. Si el clúster exige
 IP permitida, TLS tolerante no sustituye la lista de acceso de Atlas: si la IP
 del teléfono no está autorizada, la conexión seguirá rechazándose.
 
-La URI configurada es una credencial del dispositivo. Se recomienda:
+La URI va fija dentro del APK (`atlas_config.py`, que no se versiona) y usa un
+usuario de base de datos dedicado. Se recomienda:
 
-- Crear un usuario de Atlas exclusivo para la app móvil, con permisos mínimos
-  sobre `mayorix`.
+- Mantener un usuario de Atlas exclusivo para la app móvil, con permisos
+  mínimos sobre `mayorix`.
 - No usar el usuario administrador del clúster.
 - Rotar la credencial si un teléfono se pierde.
 - Para una distribución masiva, usar una API HTTPS intermedia.
@@ -88,17 +90,17 @@ La URI configurada es una credencial del dispositivo. Se recomienda:
 ## Ejecutar en desarrollo
 
 ```powershell
-cd D:\PROYECTOS\Mayorix\Mayorix_Mobile
+cd D:\PROYECTOS\Mayorix\src\Mayorix_Mobile
 python main.py
 ```
 
 ## Compilar APK
 
 ```powershell
-cd D:\PROYECTOS\Mayorix\Mayorix_Mobile
+cd D:\PROYECTOS\Mayorix\src\Mayorix_Mobile
 flet build apk . --project "Mayorix Vendedor" `
   --org com.droptech --bundle-id com.droptech.mayorix.vendedor `
-  --build-version 1.1.3 --build-number 5 --yes
+  --build-version 1.1.4 --build-number 6 --yes
 ```
 
 El APK queda en `build/apk/Mayorix Vendedor.apk`.
@@ -113,7 +115,7 @@ El APK queda en `build/apk/Mayorix Vendedor.apk`.
 ## Estructura
 
 ```
-Mayorix_Mobile/
+src/Mayorix_Mobile/
 ├── main.py            # Shell, sesión y registro
 ├── login_view.py      # Login centrado y flujo de código
 ├── catalog_view.py    # Catálogo paginado

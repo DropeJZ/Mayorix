@@ -24,7 +24,6 @@ from data_mobile import MobileStore
 from login_view import login_view
 from orders_view import orders_view, show_order_detail
 from profile_view import profile_view
-from setup_view import setup_view
 
 TABS = [
     ("catalogo", "Catálogo", ft.Icons.INVENTORY_2_OUTLINED),
@@ -37,6 +36,7 @@ TABS = [
 class VendedorApp:
     def __init__(self, page: ft.Page):
         self.page = page
+        self.prefs = ft.SharedPreferences()
         self.store = MobileStore()
         self.db_name = self.store.db_name
         self.vendor: dict = {}
@@ -137,11 +137,8 @@ class VendedorApp:
         self.page.title = "Mayorix · Vendedor"
         self.refresh_login()
 
-    def iniciar_sesion_o_login(self):
-        try:
-            sesion = session_store.leer_sesion()
-        except Exception:
-            sesion = None
+    async def iniciar_sesion_o_login(self):
+        sesion = await session_store.leer_sesion(self.prefs)
         if sesion:
             self.vendor = sesion.get("vendor", {}) or {}
             self.session_token = sesion.get("token", "")
@@ -156,8 +153,8 @@ class VendedorApp:
         await self._cargar_tasa()
         if self.session_token != token:
             return
-        session_store.guardar_sesion(
-            token, self.vendor, self.session_expira, self.rate
+        await session_store.guardar_sesion(
+            self.prefs, token, self.vendor, self.session_expira, self.rate
         )
         try:
             vendedor = await self.run_blocking(
@@ -177,8 +174,8 @@ class VendedorApp:
             )
             return
         self.vendor = vendedor
-        session_store.guardar_sesion(
-            token, self.vendor, self.session_expira, self.rate
+        await session_store.guardar_sesion(
+            self.prefs, token, self.vendor, self.session_expira, self.rate
         )
         if self.content_host is not None:
             self.refresh_view()
@@ -187,7 +184,7 @@ class VendedorApp:
         token = self.session_token
         self.session_token = ""
         self.session_expira = 0
-        session_store.borrar_sesion()
+        self.page.run_task(session_store.borrar_sesion, self.prefs)
         if token:
             self.page.run_task(self._revocar_sesion_remota, token)
         self.show_login()
@@ -199,19 +196,6 @@ class VendedorApp:
             await self.run_blocking(self.store.revocar_sesion, token)
         except Exception:
             pass
-
-    def show_setup(self):
-        self.page.title = "Mayorix · Configuración"
-        self.page.controls.clear()
-        self.page.add(setup_view(self))
-        self.page.update()
-
-    async def configurar_atlas(self, uri: str):
-        await self.run_blocking(self.store.configurar, uri)
-        self.db_name = self.store.db_name
-        await self._cargar_tasa()
-        self.iniciar_sesion_o_login()
-        self.toast("Conexión con MongoDB Atlas configurada.", "success")
 
     async def _cargar_tasa(self):
         try:
@@ -232,9 +216,9 @@ class VendedorApp:
             )
             self.session_token = sesion.get("token", "")
             self.session_expira = int(sesion.get("expira_epoch", 0) or 0)
-            session_store.guardar_sesion(
-                self.session_token, self.vendor, self.session_expira,
-                self.rate,
+            await session_store.guardar_sesion(
+                self.prefs, self.session_token, self.vendor,
+                self.session_expira, self.rate,
             )
         except Exception:
             self.session_token = ""
@@ -272,9 +256,9 @@ class VendedorApp:
             )
             self.session_token = sesion.get("token", "")
             self.session_expira = int(sesion.get("expira_epoch", 0) or 0)
-            session_store.guardar_sesion(
-                self.session_token, self.vendor, self.session_expira,
-                self.rate,
+            await session_store.guardar_sesion(
+                self.prefs, self.session_token, self.vendor,
+                self.session_expira, self.rate,
             )
         except Exception:
             self.session_token = ""
@@ -559,10 +543,9 @@ def main(page: ft.Page):
         ),
     )
     app = VendedorApp(page)
-    if app.store.configurado:
-        app.iniciar_sesion_o_login()
-    else:
-        app.show_setup()
+    # `ft.SharedPreferences` se registra solo (auto_register) con la página
+    # actual; aquí solo lanzamos la restauración de sesión/login.
+    page.run_task(app.iniciar_sesion_o_login)
 
 
 if __name__ == "__main__":

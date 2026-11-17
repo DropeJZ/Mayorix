@@ -4,8 +4,8 @@ services:
     runtime: python
     plan: free
     autoDeploy: true
-    buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
+    buildCommand: pip install -r deploy/requirements.txt
+    startCommand: python deploy/main.py
     healthCheckPath: /
     envVars:
       - key: PYTHON_VERSION

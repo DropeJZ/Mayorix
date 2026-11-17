@@ -13,7 +13,7 @@ edición **2.1.5**.
 ### Ejecutable
 
 ```
-D:\PROYECTOS\Mayorix\Mayorix.exe
+D:\PROYECTOS\Mayorix\Mayorix.exe  (salida del build a la raiz)
 ```
 
 ### Código fuente

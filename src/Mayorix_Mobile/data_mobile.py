@@ -4,10 +4,8 @@ Mayorix Vendedor · Acceso directo a MongoDB Atlas
 Esta capa se ejecuta dentro del APK y se conecta a Atlas por internet.
 Incluye catálogo, pedidos, autenticación por cédula y registro con código.
 
-ADVERTENCIA: la URI se configura una sola vez en el dispositivo y se guarda
-en el almacenamiento privado de la app. No se empaqueta en el APK.
-Para una distribución masiva se recomienda usar un usuario de Atlas con
-permisos mínimos sobre `mayorix`.
+La URI del clúster vive en `atlas_config.py` (generado al compilar el APK
+preconfigurado) y no se pide al usuario en ningún momento.
 """
 
 from __future__ import annotations
@@ -20,7 +18,6 @@ import secrets
 import time
 import unicodedata
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 from pymongo import ASCENDING, DESCENDING, MongoClient
 from pymongo.errors import DuplicateKeyError, PyMongoError
@@ -46,44 +43,13 @@ def opciones_conexion() -> dict:
     return opciones
 
 
-def _directorio_datos() -> Path:
-    base = os.getenv("FLET_APP_STORAGE_DATA", "").strip()
-    if base:
-        return Path(base)
-    return Path.home() / ".mayorix_vendedor"
-
-
 def leer_uri_configurada() -> str:
-    uri = os.getenv("MONGO_URI", "").strip()
-    if uri:
-        return uri
-    archivo = _directorio_datos() / "atlas_uri.txt"
-    if archivo.is_file():
-        try:
-            contenido = archivo.read_text(encoding="utf-8").strip()
-            if contenido:
-                return contenido
-        except OSError:
-            pass
-    if os.getenv("MAYORIX_DISABLE_BUNDLED_URI", "") != "1":
-        try:
-            from atlas_config import MONGO_URI
-            if MONGO_URI:
-                return MONGO_URI.strip()
-        except ImportError:
-            pass
-    return ""
-
-
-def guardar_uri_configurada(uri: str) -> None:
-    directorio = _directorio_datos()
-    directorio.mkdir(parents=True, exist_ok=True)
-    archivo = directorio / "atlas_uri.txt"
-    archivo.write_text(str(uri).strip(), encoding="utf-8")
+    """URI fija del clúster Atlas, incluida en el APK desde atlas_config.py."""
     try:
-        os.chmod(archivo, 0o600)
-    except OSError:
-        pass
+        from atlas_config import MONGO_URI
+    except ImportError:
+        return ""
+    return str(MONGO_URI or "").strip()
 
 
 def leer_db_configurada() -> str:
@@ -203,34 +169,6 @@ class MobileStore:
         self.accesos = self.db["accesos_vendedor"]
         self.solicitudes = self.db["solicitudes_registro"]
         self.sesiones = self.db["sesiones_movil"]
-
-    def configurar(self, uri: str, db_name: str | None = None) -> None:
-        texto = str(uri or "").strip()
-        if not texto:
-            raise ValueError("Ingresa la URI de MongoDB Atlas.")
-        if not texto.lower().startswith(("mongodb://", "mongodb+srv://")):
-            raise ValueError("La URI debe comenzar con mongodb:// o mongodb+srv://.")
-        db_nombre = db_name or self.db_name or DB_POR_DEFECTO
-        try:
-            prueba = MongoClient(
-                texto,
-                **opciones_conexion(),
-                serverSelectionTimeoutMS=9000,
-                connectTimeoutMS=9000,
-                appname="MayorixVendedorSetup",
-            )
-            prueba.admin.command("ping")
-        except Exception as exc:
-            raise ValueError(
-                "No se pudo conectar con Atlas. Revisa la URI, la red y la "
-                "lista de acceso del clúster."
-            ) from exc
-        guardar_uri_configurada(texto)
-        self.uri = texto
-        self.db_name = db_nombre
-        self._indices_listos = False
-        self._conectar()
-        self.asegurar_indices()
 
     @property
     def conectado(self) -> bool:
